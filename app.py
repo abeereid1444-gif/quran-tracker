@@ -30,10 +30,10 @@ TABARAK_SURAHS = [
     "سورة القيامة", "سورة الإنسان", "سورة المرسلات"
 ]
 
-STUDENTS = ["عبير", "اشفاق", "ندى", "منيرة", "في", "صفيه"]
+STUDENTS = ["طالبة 1", "طالبة 2", "طالبة 3", "طالبة 4", "طالبة 5", "طالبة 6"]
 
 if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(columns=["الطالبة", "السورة", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
+    st.session_state.data = pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
 if "step" not in st.session_state:
     st.session_state.step = 1
@@ -59,11 +59,19 @@ with tab1:
         
         surah = st.selectbox("اختر السورة من جزء تبارك:", TABARAK_SURAHS)
         
+        # اختيار نوع الأداء (تسميع / تلاوة) جنبًا إلى جنب
+        eval_type = st.radio(
+            "اختر نوع التقييم:", 
+            ["تسميع 🎙️", "تلاوة 📖"], 
+            horizontal=True, 
+            key="eval_type_radio"
+        )
+        
         st.write("---")
         st.write("### ⭐️ تقييم الحفظ (من 5):")
         memo = st.radio("درجة الحفظ:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="memo_radio")
         
-        st.write("### ⭐️️ تقييم التجويد (من 5):")
+        st.write("### ⭐ تقييم التجويد (من 5):")
         tajweed = st.radio("درجة التجويد:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="tajweed_radio")
         
         st.write("---")
@@ -75,6 +83,7 @@ with tab1:
                 new_row = {
                     "الطالبة": st.session_state.selected_student,
                     "السورة": surah,
+                    "النوع": eval_type,
                     "الحفظ (/5)": memo,
                     "التجويد (/5)": tajweed,
                     "المجموع (/10)": total
@@ -104,8 +113,8 @@ with tab2:
             with surah_tabs[idx]:
                 st.write(f"### 📖 {surah_name}")
                 
-                # تصفية البيانات الخاصة بالسورة المحددة فقط
-                surah_data = df[df["السورة"] == surah_name][["الطالبة", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
+                # تصفية البيانات الخاصة بالسورة المحددة فقط وتضمين عمود النوع
+                surah_data = df[df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
                 
                 if surah_data.empty:
                     st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
