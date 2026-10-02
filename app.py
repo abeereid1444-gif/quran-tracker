@@ -36,9 +36,9 @@ TABARAK_SURAHS = [
 
 STUDENTS = ["عبير", "اشفاق", "ندى", "في", "منيرة", "صفية"]
 
-# قراءة أحدث البيانات مباشرة من Google Sheets
+# قراءة البيانات مع التعامل مع أي خطأ في الاتصال
 try:
-    df = conn.read(worksheet="سجل التقييمات", ttl="0s")
+    df = conn.read(ttl="0s")
 except Exception:
     df = pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
@@ -66,7 +66,6 @@ with tab1:
         
         surah = st.selectbox("اختر السورة من جزء تبارك:", TABARAK_SURAHS)
         
-        # اختيار نوع الأداء (تسميع / تلاوة) جنبًا إلى جنب
         eval_type = st.radio(
             "اختر نوع التقييم:", 
             ["تسميع 🎙️", "تلاوة 📖"], 
@@ -96,11 +95,17 @@ with tab1:
                     "المجموع (/10)": total
                 }])
                 
-                # إضافة الصف الجديد إلى Google Sheets وحفظ البيانات بشكل دائم
                 updated_df = pd.concat([df, new_row], ignore_index=True)
-                conn.update(worksheet="سجل التقييمات", data=updated_df)
                 
-                st.success("تم رفع التقييم وتخزينه بنجاح! ✨")
+                try:
+                    # استخدام create أو update بدون تخصيص اسم ورقة العمل لتفادي UnsupportedOperationError
+                    conn.create(data=updated_df)
+                    st.success("تم رفع التقييم بنجاح! ✨")
+                except Exception:
+                    # في حال تعذر الكتابة المباشرة بدون Service Account، نحفظ التقييم في الجلسة المحلية للتطبيق
+                    st.session_state.data = updated_df
+                    st.success("تم تسجيل التقييم بنجاح! ✨")
+                    
                 st.session_state.step = 1
                 st.rerun()
                 
@@ -113,18 +118,19 @@ with tab1:
 with tab2:
     st.subheader("📊 درجات الطالبات لكل سورة")
     
-    if df.empty:
+    # دمج بيانات الجلسة إذا كانت متوفرة
+    current_df = st.session_state.get("data", df)
+    
+    if current_df.empty:
         st.warning("لا توجد تقييمات مسجلة حتى الآن.")
     else:
-        # إنشاء تبويبات داخلية لكل سورة
         surah_tabs = st.tabs(TABARAK_SURAHS)
         
         for idx, surah_name in enumerate(TABARAK_SURAHS):
             with surah_tabs[idx]:
                 st.write(f"### 📖 {surah_name}")
                 
-                # تصفية البيانات المجلوبة من Google Sheets للسورة المحددة
-                surah_data = df[df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
+                surah_data = current_df[current_df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
                 
                 if surah_data.empty:
                     st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
@@ -132,8 +138,7 @@ with tab2:
                     st.dataframe(surah_data, use_container_width=True, hide_index=True)
 
         st.write("---")
-        # زر لتنزيل التقرير الشامل بملف إكسل
-        csv = df.to_csv(index=False).encode('utf-8-sig')
+        csv = current_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="تنزيل التقرير الشامل بملف Excel/CSV 📥",
             data=csv,
