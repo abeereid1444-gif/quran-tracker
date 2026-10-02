@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# 1. تهيئة الصفحة لتناسب الجوال
+# 1. تهيئة الصفحة
 st.set_page_config(
     page_title="تقييم تسميع جزء تبارك",
     page_icon="📖",
@@ -10,37 +10,31 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# تنسيقات للشاشات والجوال
-st.markdown("""
-    <style>
-    .stButton>button {
-        width: 100%;
-        border-radius: 10px;
-        height: 3em;
-        font-weight: bold;
-    }
-    .stSelectbox, .stRadio {
-        font-size: 18px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# ضعِي بياناتك الحقيقية هنا
+BIN_ID = "6abfa100ac6210605a0c3074"
+API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 
-# رابط مخزن سحابي مجاني مباشر وتلقائي خاص ببرنامجك
-DB_URL = "https://api.keyvalue.xyz/quran_tabarak_tracker_db_v1"
+URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
+HEADERS = {
+    "Content-Type": "application/json",
+    "X-Master-Key": API_KEY
+}
 
-# دالة لقراءة البيانات السحابية
+# دالة مأمونة لجلب البيانات
 def load_data():
     try:
-        res = requests.get(DB_URL, timeout=5)
-        if res.status_code == 200 and res.text.strip():
-            records = res.json()
-            if isinstance(records, list):
-                return pd.DataFrame(records)
-    except Exception:
-        pass
+        res = requests.get(f"{URL}/latest", headers=HEADERS, timeout=10)
+        if res.status_code == 200:
+            data = res.json().get("record", {})
+            records = data.get("records", []) if isinstance(data, dict) else []
+            return pd.DataFrame(records)
+        else:
+            st.error(f"تنبيه السحابة: رمز {res.status_code}")
+    except Exception as e:
+        st.error(f"خطأ اتصالات: {e}")
     return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
-# دالة لحفظ البيانات السحابية
+# دالة مأمونة لحفظ البيانات
 def save_data(df):
     try:
         clean_df = df.copy()
@@ -49,10 +43,12 @@ def save_data(df):
         clean_df["المجموع (/10)"] = clean_df["المجموع (/10)"].astype(int)
         
         records = clean_df.to_dict(orient="records")
-        res = requests.post(DB_URL, json=records, timeout=5)
-        return res.status_code in [200, 201]
+        payload = {"records": records}
+        
+        res = requests.put(URL, json=payload, headers=HEADERS, timeout=10)
+        return res.status_code == 200
     except Exception as e:
-        st.error(f"حدث خطأ أثناء الحفظ: {e}")
+        st.error(f"خطأ بالحفظ: {e}")
         return False
 
 TABARAK_SURAHS = [
@@ -89,13 +85,13 @@ with tab1:
         
         eval_type = st.radio(
             "اختر نوع التقييم:", 
-            ["تسميع 🎙️", "تلاوة 📖"], 
+            ["تسميع 🎙️️", "تلاوة 📖"], 
             horizontal=True, 
             key="eval_type_radio"
         )
         
         st.write("---")
-        st.write("### ⭐️ تقييم الحفظ (من 5):")
+        st.write("### ⭐️️ تقييم الحفظ (من 5):")
         memo = st.radio("درجة الحفظ:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="memo_radio")
         
         st.write("### ⭐ تقييم التجويد (من 5):")
@@ -121,11 +117,10 @@ with tab1:
                 
                 if save_data(df_updated):
                     st.success("تم رفع التقييم وتخزينه سحابياً بنجاح! ✨")
+                    st.session_state.step = 1
+                    st.rerun()
                 else:
-                    st.success("تم تسجيل التقييم بنجاح! ✨")
-                    
-                st.session_state.step = 1
-                st.rerun()
+                    st.error("فشل الحفظ، يرجى التأكد من المفاتيح.")
                 
         with col_back:
             if st.button("تغيير الطالبة ↩️"):
@@ -134,7 +129,7 @@ with tab1:
 
 # ---------------- التبويب الثاني: الإحصائيات حسب السورة ----------------
 with tab2:
-    st.subheader("📊 درجات الطالبات لكل سورة (محدّثة مباشر)")
+    st.subheader("📊 درجات الطالبات لكل سورة")
     
     df = load_data()
     
