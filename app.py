@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
+import requests
 
 # 1. تهيئة الصفحة
 st.set_page_config(
@@ -10,23 +10,31 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# تنسيقات للشاشات والجوال
-st.markdown("""
-    <style>
-    .stButton>button {
-        width: 100%;
-        border-radius: 10px;
-        height: 3em;
-        font-weight: bold;
-    }
-    .stSelectbox, .stRadio {
-        font-size: 18px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# بيانات التخزين السحابي (استبدليها ببياناتك من موقع jsonbin.io)
+BIN_ID = "6abfa100ac6210605a0c3074"
+API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 
-# الاتصال بـ Google Sheets
-conn = st.connection("gsheets", type=GSheetsConnection)
+URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
+HEADERS = {
+    "Content-Type": "application/json",
+    "X-Master-Key": API_KEY
+}
+
+# دالة لقراءة البيانات السحابية
+def load_data():
+    try:
+        response = requests.get(f"{URL}/latest", headers=HEADERS)
+        if response.status_code == 200:
+            records = response.json().get("record", [])
+            return pd.DataFrame(records)
+    except Exception:
+        pass
+    return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
+
+# دالة لحفظ البيانات السحابية
+def save_data(df):
+    records = df.to_dict(orient="records")
+    requests.put(URL, json=records, headers=HEADERS)
 
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
@@ -35,12 +43,6 @@ TABARAK_SURAHS = [
 ]
 
 STUDENTS = ["عبير", "اشفاق", "ندى", "في", "منيرة", "صفية"]
-
-# قراءة البيانات مع التعامل مع أي خطأ في الاتصال
-try:
-    df = conn.read(ttl="0s")
-except Exception:
-    df = pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
 if "step" not in st.session_state:
     st.session_state.step = 1
@@ -86,26 +88,21 @@ with tab1:
         with col_sub:
             if st.button("رفع التقييم 📤", type="primary"):
                 total = memo + tajweed
-                new_row = pd.DataFrame([{
+                new_row = {
                     "الطالبة": st.session_state.selected_student,
                     "السورة": surah,
                     "النوع": eval_type,
                     "الحفظ (/5)": memo,
                     "التجويد (/5)": tajweed,
                     "المجموع (/10)": total
-                }])
+                }
                 
-                updated_df = pd.concat([df, new_row], ignore_index=True)
+                # جلب البيانات الحالية وإضافة الصف الجديد ثم الحفظ سحابياً
+                df_current = load_data()
+                df_updated = pd.concat([df_current, pd.DataFrame([new_row])], ignore_index=True)
+                save_data(df_updated)
                 
-                try:
-                    # استخدام create أو update بدون تخصيص اسم ورقة العمل لتفادي UnsupportedOperationError
-                    conn.create(data=updated_df)
-                    st.success("تم رفع التقييم بنجاح! ✨")
-                except Exception:
-                    # في حال تعذر الكتابة المباشرة بدون Service Account، نحفظ التقييم في الجلسة المحلية للتطبيق
-                    st.session_state.data = updated_df
-                    st.success("تم تسجيل التقييم بنجاح! ✨")
-                    
+                st.success("تم رفع التقييم وتخزينه سحابياً بنجاح! ✨")
                 st.session_state.step = 1
                 st.rerun()
                 
@@ -116,12 +113,12 @@ with tab1:
 
 # ---------------- التبويب الثاني: الإحصائيات حسب السورة ----------------
 with tab2:
-    st.subheader("📊 درجات الطالبات لكل سورة")
+    st.subheader("📊 درجات الطالبات لكل سورة (محدّثة مباشر)")
     
-    # دمج بيانات الجلسة إذا كانت متوفرة
-    current_df = st.session_state.get("data", df)
+    # قراءة البيانات السحابية المحدثة
+    df = load_data()
     
-    if current_df.empty:
+    if df.empty:
         st.warning("لا توجد تقييمات مسجلة حتى الآن.")
     else:
         surah_tabs = st.tabs(TABARAK_SURAHS)
@@ -130,7 +127,7 @@ with tab2:
             with surah_tabs[idx]:
                 st.write(f"### 📖 {surah_name}")
                 
-                surah_data = current_df[current_df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
+                surah_data = df[df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
                 
                 if surah_data.empty:
                     st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
@@ -138,7 +135,7 @@ with tab2:
                     st.dataframe(surah_data, use_container_width=True, hide_index=True)
 
         st.write("---")
-        csv = current_df.to_csv(index=False).encode('utf-8-sig')
+        csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="تنزيل التقرير الشامل بملف Excel/CSV 📥",
             data=csv,
