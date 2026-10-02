@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# 1. تهيئة الصفحة لتناسب الجوال بالكامل
+# 1. تهيئة الصفحة
 st.set_page_config(
     page_title="تقييم تسميع جزء تبارك",
     page_icon="📖",
@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# تحسين تنسيق CSS للشاشات الصغيرة والأزرار
+# تنسيقات للشاشات والجوال
 st.markdown("""
     <style>
     .stButton>button {
@@ -24,7 +24,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# قائمة سور جزء تبارك كاملة
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
     "سورة نوح", "سورة الجن", "سورة المزمل", "سورة المدثر", 
@@ -33,7 +32,6 @@ TABARAK_SURAHS = [
 
 STUDENTS = ["طالبة 1", "طالبة 2", "طالبة 3", "طالبة 4", "طالبة 5", "طالبة 6"]
 
-# مخزن البيانات في الجلسة
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["الطالبة", "السورة", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
@@ -42,8 +40,7 @@ if "step" not in st.session_state:
 
 st.title("📖 تقييم تسميع جزء تبارك")
 
-# تبويبات متوافقة مع شاشة الجوال
-tab1, tab2 = st.tabs(["📝 إدخال تقييم", "📊 الإحصائيات والبرنت"])
+tab1, tab2 = st.tabs(["📝 إدخال تقييم", "📊 الإحصائيات حسب السورة"])
 
 # ---------------- التبويب الأول: إدخال التقييم ----------------
 with tab1:
@@ -66,7 +63,7 @@ with tab1:
         st.write("### ⭐️ تقييم الحفظ (من 5):")
         memo = st.radio("درجة الحفظ:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="memo_radio")
         
-        st.write("### ⭐️ تقييم التجويد (من 5):")
+        st.write("### ⭐️️ تقييم التجويد (من 5):")
         tajweed = st.radio("درجة التجويد:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="tajweed_radio")
         
         st.write("---")
@@ -91,30 +88,36 @@ with tab1:
                 st.session_state.step = 1
                 st.rerun()
 
-# ---------------- التبويب الثاني: الإحصائيات ----------------
+# ---------------- التبويب الثاني: الإحصائيات حسب السورة ----------------
 with tab2:
-    st.subheader("📊 برنت البيانات والتقارير")
+    st.subheader("📊 درجات الطالبات لكل سورة")
     
     df = st.session_state.data
     
     if df.empty:
         st.warning("لا توجد تقييمات مسجلة حتى الآن.")
     else:
-        # كروت ملونة سريعة للشاشة
-        col1, col2 = st.columns(2)
-        col1.metric("إجمالي التقييمات", len(df))
-        col2.metric("متوسط التقدير العام", f"{df['المجموع (/10)'].mean():.1f} / 10")
+        # إنشاء تبويبات داخلية لكل سورة
+        surah_tabs = st.tabs(TABARAK_SURAHS)
         
-        st.write("### 📋 جدول السجلات الملون:")
-        st.dataframe(
-            df.style.background_gradient(subset=["المجموع (/10)"], cmap="Greens"),
-            use_container_width=True
-        )
-        
-        # زر لتنزيل البيانات للطباعة/إكسل
+        for idx, surah_name in enumerate(TABARAK_SURAHS):
+            with surah_tabs[idx]:
+                st.write(f"### 📖 {surah_name}")
+                
+                # تصفية البيانات الخاصة بالسورة المحددة فقط
+                surah_data = df[df["السورة"] == surah_name][["الطالبة", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
+                
+                if surah_data.empty:
+                    st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
+                else:
+                    # عرض الجدول عمودياً بشكل مرتب
+                    st.dataframe(surah_data, use_container_width=True, hide_index=True)
+
+        st.write("---")
+        # زر لتنزيل كل التقرير كملف إكسل
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
-            label="تنزيل التقرير بملف Excel/CSV 📥",
+            label="تنزيل التقرير الشامل بملف Excel/CSV 📥",
             data=csv,
             file_name="تقرير_تقييم_تسميع_جزء_تبارك.csv",
             mime="text/csv"
