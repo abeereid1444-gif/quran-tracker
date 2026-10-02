@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 
 # 1. تهيئة الصفحة
 st.set_page_config(
@@ -24,6 +25,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# الاتصال بـ Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
     "سورة نوح", "سورة الجن", "سورة المزمل", "سورة المدثر", 
@@ -32,8 +36,11 @@ TABARAK_SURAHS = [
 
 STUDENTS = ["عبير", "اشفاق", "ندى", "في", "منيرة", "صفية"]
 
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
+# قراءة أحدث البيانات مباشرة من Google Sheets
+try:
+    df = conn.read(worksheet="سجل التقييمات", ttl="0s")
+except Exception:
+    df = pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
 if "step" not in st.session_state:
     st.session_state.step = 1
@@ -80,17 +87,22 @@ with tab1:
         with col_sub:
             if st.button("رفع التقييم 📤", type="primary"):
                 total = memo + tajweed
-                new_row = {
+                new_row = pd.DataFrame([{
                     "الطالبة": st.session_state.selected_student,
                     "السورة": surah,
                     "النوع": eval_type,
                     "الحفظ (/5)": memo,
                     "التجويد (/5)": tajweed,
                     "المجموع (/10)": total
-                }
-                st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_row])], ignore_index=True)
-                st.success("تم رفع التقييم بنجاح! ✨")
+                }])
+                
+                # إضافة الصف الجديد إلى Google Sheets وحفظ البيانات بشكل دائم
+                updated_df = pd.concat([df, new_row], ignore_index=True)
+                conn.update(worksheet="سجل التقييمات", data=updated_df)
+                
+                st.success("تم رفع التقييم وتخزينه بنجاح! ✨")
                 st.session_state.step = 1
+                st.rerun()
                 
         with col_back:
             if st.button("تغيير الطالبة ↩️"):
@@ -100,8 +112,6 @@ with tab1:
 # ---------------- التبويب الثاني: الإحصائيات حسب السورة ----------------
 with tab2:
     st.subheader("📊 درجات الطالبات لكل سورة")
-    
-    df = st.session_state.data
     
     if df.empty:
         st.warning("لا توجد تقييمات مسجلة حتى الآن.")
@@ -113,17 +123,16 @@ with tab2:
             with surah_tabs[idx]:
                 st.write(f"### 📖 {surah_name}")
                 
-                # تصفية البيانات الخاصة بالسورة المحددة فقط وتضمين عمود النوع
+                # تصفية البيانات المجلوبة من Google Sheets للسورة المحددة
                 surah_data = df[df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
                 
                 if surah_data.empty:
                     st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
                 else:
-                    # عرض الجدول عمودياً بشكل مرتب
                     st.dataframe(surah_data, use_container_width=True, hide_index=True)
 
         st.write("---")
-        # زر لتنزيل كل التقرير كملف إكسل
+        # زر لتنزيل التقرير الشامل بملف إكسل
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="تنزيل التقرير الشامل بملف Excel/CSV 📥",
