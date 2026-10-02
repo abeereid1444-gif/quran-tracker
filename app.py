@@ -17,16 +17,18 @@ API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
 HEADERS = {
     "Content-Type": "application/json",
-    "X-Master-Key": API_KEY
+    "X-Master-Key": API_KEY,
+    "X-Bin-Private": "false"
 }
 
-# دالة مأمونة لقراءة البيانات السحابية
+# دالة لقراءة البيانات السحابية
 def load_data():
     try:
         response = requests.get(f"{URL}/latest", headers=HEADERS)
         if response.status_code == 200:
             res_json = response.json()
             record_data = res_json.get("record", {})
+            
             if isinstance(record_data, dict):
                 records = record_data.get("records", [])
             elif isinstance(record_data, list):
@@ -34,14 +36,15 @@ def load_data():
             else:
                 records = []
             return pd.DataFrame(records)
-    except Exception:
-        pass
+        else:
+            st.error(f"خطأ في الاتصال بالخدمة السحابية (رمز {response.status_code})")
+    except Exception as e:
+        st.error(f"فشل جلب البيانات: {e}")
     return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
-# دالة مأمونة لحفظ البيانات السحابية
+# دالة لحفظ البيانات السحابية
 def save_data(df):
     try:
-        # تحويل أنواع البيانات إلى أنواع بايثون قياسية للسلامة من أخطاء JSON
         clean_df = df.copy()
         clean_df["الحفظ (/5)"] = clean_df["الحفظ (/5)"].astype(int)
         clean_df["التجويد (/5)"] = clean_df["التجويد (/5)"].astype(int)
@@ -50,9 +53,15 @@ def save_data(df):
         records = clean_df.to_dict(orient="records")
         payload = {"records": records}
         
-        requests.put(URL, json=payload, headers=HEADERS)
+        response = requests.put(URL, json=payload, headers=HEADERS)
+        if response.status_code == 200:
+            return True
+        else:
+            st.error(f"لم يتم الحفظ في السحابة (رمز الخطأ: {response.status_code})")
+            return False
     except Exception as e:
         st.error(f"حدث خطأ أثناء الحفظ: {e}")
+        return False
 
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
@@ -117,11 +126,11 @@ with tab1:
                 
                 df_current = load_data()
                 df_updated = pd.concat([df_current, pd.DataFrame([new_row])], ignore_index=True)
-                save_data(df_updated)
                 
-                st.success("تم رفع التقييم وتخزينه سحابياً بنجاح! ✨")
-                st.session_state.step = 1
-                st.rerun()
+                if save_data(df_updated):
+                    st.success("تم رفع التقييم وتخزينه سحابياً بنجاح! ✨")
+                    st.session_state.step = 1
+                    st.rerun()
                 
         with col_back:
             if st.button("تغيير الطالبة ↩️"):
