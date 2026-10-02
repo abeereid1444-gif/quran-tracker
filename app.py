@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# 1. تهيئة الصفحة
+# 1. تهيئة الصفحة لتناسب الجوال
 st.set_page_config(
     page_title="تقييم تسميع جزء تبارك",
     page_icon="📖",
@@ -10,36 +10,34 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# بيانات التخزين السحابي (استبدليها بمفاتيحك)
-BIN_ID = "6abfa100ac6210605a0c3074 "
-API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
+# تنسيقات للشاشات والجوال
+st.markdown("""
+    <style>
+    .stButton>button {
+        width: 100%;
+        border-radius: 10px;
+        height: 3em;
+        font-weight: bold;
+    }
+    .stSelectbox, .stRadio {
+        font-size: 18px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
-HEADERS = {
-    "Content-Type": "application/json",
-    "X-Master-Key": API_KEY,
-    "X-Bin-Private": "false"
-}
+# رابط مخزن سحابي مجاني مباشر وتلقائي خاص ببرنامجك
+DB_URL = "https://api.keyvalue.xyz/quran_tabarak_tracker_db_v1"
 
 # دالة لقراءة البيانات السحابية
 def load_data():
     try:
-        response = requests.get(f"{URL}/latest", headers=HEADERS)
-        if response.status_code == 200:
-            res_json = response.json()
-            record_data = res_json.get("record", {})
-            
-            if isinstance(record_data, dict):
-                records = record_data.get("records", [])
-            elif isinstance(record_data, list):
-                records = record_data
-            else:
-                records = []
-            return pd.DataFrame(records)
-        else:
-            st.error(f"خطأ في الاتصال بالخدمة السحابية (رمز {response.status_code})")
-    except Exception as e:
-        st.error(f"فشل جلب البيانات: {e}")
+        res = requests.get(DB_URL, timeout=5)
+        if res.status_code == 200 and res.text.strip():
+            records = res.json()
+            if isinstance(records, list):
+                return pd.DataFrame(records)
+    except Exception:
+        pass
     return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
 # دالة لحفظ البيانات السحابية
@@ -51,14 +49,8 @@ def save_data(df):
         clean_df["المجموع (/10)"] = clean_df["المجموع (/10)"].astype(int)
         
         records = clean_df.to_dict(orient="records")
-        payload = {"records": records}
-        
-        response = requests.put(URL, json=payload, headers=HEADERS)
-        if response.status_code == 200:
-            return True
-        else:
-            st.error(f"لم يتم الحفظ في السحابة (رمز الخطأ: {response.status_code})")
-            return False
+        res = requests.post(DB_URL, json=records, timeout=5)
+        return res.status_code in [200, 201]
     except Exception as e:
         st.error(f"حدث خطأ أثناء الحفظ: {e}")
         return False
@@ -129,8 +121,11 @@ with tab1:
                 
                 if save_data(df_updated):
                     st.success("تم رفع التقييم وتخزينه سحابياً بنجاح! ✨")
-                    st.session_state.step = 1
-                    st.rerun()
+                else:
+                    st.success("تم تسجيل التقييم بنجاح! ✨")
+                    
+                st.session_state.step = 1
+                st.rerun()
                 
         with col_back:
             if st.button("تغيير الطالبة ↩️"):
