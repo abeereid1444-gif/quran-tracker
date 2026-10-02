@@ -10,8 +10,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# بيانات التخزين السحابي (استبدليها ببياناتك من موقع jsonbin.io)
-BIN_ID = "6abfa100ac6210605a0c3074"
+# بيانات التخزين السحابي (استبدليها بمفاتيحك)
+BIN_ID = "6abfa100ac6210605a0c3074 "
 API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 
 URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
@@ -20,21 +20,39 @@ HEADERS = {
     "X-Master-Key": API_KEY
 }
 
-# دالة لقراءة البيانات السحابية
+# دالة مأمونة لقراءة البيانات السحابية
 def load_data():
     try:
         response = requests.get(f"{URL}/latest", headers=HEADERS)
         if response.status_code == 200:
-            records = response.json().get("record", [])
+            res_json = response.json()
+            record_data = res_json.get("record", {})
+            if isinstance(record_data, dict):
+                records = record_data.get("records", [])
+            elif isinstance(record_data, list):
+                records = record_data
+            else:
+                records = []
             return pd.DataFrame(records)
     except Exception:
         pass
     return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
-# دالة لحفظ البيانات السحابية
+# دالة مأمونة لحفظ البيانات السحابية
 def save_data(df):
-    records = df.to_dict(orient="records")
-    requests.put(URL, json=records, headers=HEADERS)
+    try:
+        # تحويل أنواع البيانات إلى أنواع بايثون قياسية للسلامة من أخطاء JSON
+        clean_df = df.copy()
+        clean_df["الحفظ (/5)"] = clean_df["الحفظ (/5)"].astype(int)
+        clean_df["التجويد (/5)"] = clean_df["التجويد (/5)"].astype(int)
+        clean_df["المجموع (/10)"] = clean_df["المجموع (/10)"].astype(int)
+        
+        records = clean_df.to_dict(orient="records")
+        payload = {"records": records}
+        
+        requests.put(URL, json=payload, headers=HEADERS)
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء الحفظ: {e}")
 
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
@@ -87,17 +105,16 @@ with tab1:
         
         with col_sub:
             if st.button("رفع التقييم 📤", type="primary"):
-                total = memo + tajweed
+                total = int(memo) + int(tajweed)
                 new_row = {
-                    "الطالبة": st.session_state.selected_student,
-                    "السورة": surah,
-                    "النوع": eval_type,
-                    "الحفظ (/5)": memo,
-                    "التجويد (/5)": tajweed,
-                    "المجموع (/10)": total
+                    "الطالبة": str(st.session_state.selected_student),
+                    "السورة": str(surah),
+                    "النوع": str(eval_type),
+                    "الحفظ (/5)": int(memo),
+                    "التجويد (/5)": int(tajweed),
+                    "المجموع (/10)": int(total)
                 }
                 
-                # جلب البيانات الحالية وإضافة الصف الجديد ثم الحفظ سحابياً
                 df_current = load_data()
                 df_updated = pd.concat([df_current, pd.DataFrame([new_row])], ignore_index=True)
                 save_data(df_updated)
@@ -115,7 +132,6 @@ with tab1:
 with tab2:
     st.subheader("📊 درجات الطالبات لكل سورة (محدّثة مباشر)")
     
-    # قراءة البيانات السحابية المحدثة
     df = load_data()
     
     if df.empty:
