@@ -10,9 +10,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ضعِي بياناتك الحقيقية هنا
-BIN_ID = "ضعِي_هنا_BIN_ID"
-API_KEY = "ضعِي_هنا_SECRET_KEY"
+# ضعِي مفاتيحك الحقيقية بالإنجليزية هنا (بدون أي حروف عربية)
+BIN_ID = "6abfa100ac6210605a0c3074"
+API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 
 URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
 HEADERS = {
@@ -22,13 +22,16 @@ HEADERS = {
 
 # دالة مأمونة لجلب البيانات
 def load_data():
+    if "ضعِي_هنا" in BIN_ID or "ضعِي_هنا" in API_KEY:
+        st.warning("⚠️ يرجى استبدال 'ضعِي_هنا_BIN_ID' و 'ضعِي_هنا_SECRET_KEY' بالمفاتيح الإنجليزية الحقيقية من موقع JSONBin.")
+        return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
+        
     try:
         res = requests.get(f"{URL}/latest", headers=HEADERS, timeout=10)
         if res.status_code == 200:
             data = res.json().get("record", {})
             records = data.get("records", []) if isinstance(data, dict) else []
             df = pd.DataFrame(records)
-            # التأكد من وجود عمود "الجزئية" حتى للسجلات القديمة
             if not df.empty and "الجزئية" not in df.columns:
                 df["الجزئية"] = "غير محدد"
             return df
@@ -40,6 +43,10 @@ def load_data():
 
 # دالة مأمونة لحفظ البيانات
 def save_data(df):
+    if "ضعِي_هنا" in BIN_ID or "ضعِي_هنا" in API_KEY:
+        st.error("⚠️ يرجى كتابة المفاتيح الإنجليزية الحقيقية قبل حفظ البيانات.")
+        return False
+        
     try:
         clean_df = df.copy()
         clean_df["الحفظ (/5)"] = clean_df["الحفظ (/5)"].astype(int)
@@ -87,7 +94,6 @@ with tab1:
         
         surah = st.selectbox("اختر السورة من جزء تبارك:", TABARAK_SURAHS)
         
-        # اختيار نوع التقييم
         eval_type = st.radio(
             "اختر نوع التقييم:", 
             ["تسميع 🎙", "تلاوة 📖"], 
@@ -95,7 +101,6 @@ with tab1:
             key="eval_type_radio"
         )
         
-        # اختيار الجزئية (3 خانات أفقية جنبًا إلى جنب)
         part_section = st.radio(
             "اختر الجزئية المطلوب تقييمها:", 
             ["الجزئية الأولى 📍", "الجزئية الثانية 📍", "الجزئية الأخيرة 📍"], 
@@ -137,7 +142,7 @@ with tab1:
                     st.error("فشل الحفظ، يرجى التأكد من المفاتيح.")
                 
         with col_back:
-            if st.button("تغيير الطالبة ↩️️"):
+            if st.button("تغيير الطالبة ↩"):
                 st.session_state.step = 1
                 st.rerun()
 
@@ -156,7 +161,6 @@ with tab2:
             with surah_tabs[idx]:
                 st.write(f"### 📖 {surah_name}")
                 
-                # إظهار أعمدة الجدول متضمنة عمود الجزئية
                 columns_to_show = ["الطالبة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]
                 available_cols = [c for c in columns_to_show if c in df.columns]
                 
