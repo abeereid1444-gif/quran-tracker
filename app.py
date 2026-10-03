@@ -11,8 +11,8 @@ st.set_page_config(
 )
 
 # ضعِي بياناتك الحقيقية هنا
-BIN_ID = "6abfa100ac6210605a0c3074"
-API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
+BIN_ID = "ضعِي_هنا_BIN_ID"
+API_KEY = "ضعِي_هنا_SECRET_KEY"
 
 URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
 HEADERS = {
@@ -27,12 +27,16 @@ def load_data():
         if res.status_code == 200:
             data = res.json().get("record", {})
             records = data.get("records", []) if isinstance(data, dict) else []
-            return pd.DataFrame(records)
+            df = pd.DataFrame(records)
+            # التأكد من وجود عمود "الجزئية" حتى للسجلات القديمة
+            if not df.empty and "الجزئية" not in df.columns:
+                df["الجزئية"] = "غير محدد"
+            return df
         else:
             st.error(f"تنبيه السحابة: رمز {res.status_code}")
     except Exception as e:
         st.error(f"خطأ اتصالات: {e}")
-    return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
+    return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
 # دالة مأمونة لحفظ البيانات
 def save_data(df):
@@ -83,15 +87,24 @@ with tab1:
         
         surah = st.selectbox("اختر السورة من جزء تبارك:", TABARAK_SURAHS)
         
+        # اختيار نوع التقييم
         eval_type = st.radio(
             "اختر نوع التقييم:", 
-            ["تسميع 🎙️️", "تلاوة 📖"], 
+            ["تسميع 🎙", "تلاوة 📖"], 
             horizontal=True, 
             key="eval_type_radio"
         )
         
+        # اختيار الجزئية (3 خانات أفقية جنبًا إلى جنب)
+        part_section = st.radio(
+            "اختر الجزئية المطلوب تقييمها:", 
+            ["الجزئية الأولى 📍", "الجزئية الثانية 📍", "الجزئية الأخيرة 📍"], 
+            horizontal=True, 
+            key="part_section_radio"
+        )
+        
         st.write("---")
-        st.write("### ⭐️️ تقييم الحفظ (من 5):")
+        st.write("### ⭐ تقييم الحفظ (من 5):")
         memo = st.radio("درجة الحفظ:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="memo_radio")
         
         st.write("### ⭐ تقييم التجويد (من 5):")
@@ -107,6 +120,7 @@ with tab1:
                     "الطالبة": str(st.session_state.selected_student),
                     "السورة": str(surah),
                     "النوع": str(eval_type),
+                    "الجزئية": str(part_section).replace(" 📍", ""),
                     "الحفظ (/5)": int(memo),
                     "التجويد (/5)": int(tajweed),
                     "المجموع (/10)": int(total)
@@ -123,7 +137,7 @@ with tab1:
                     st.error("فشل الحفظ، يرجى التأكد من المفاتيح.")
                 
         with col_back:
-            if st.button("تغيير الطالبة ↩️"):
+            if st.button("تغيير الطالبة ↩️️"):
                 st.session_state.step = 1
                 st.rerun()
 
@@ -142,7 +156,11 @@ with tab2:
             with surah_tabs[idx]:
                 st.write(f"### 📖 {surah_name}")
                 
-                surah_data = df[df["السورة"] == surah_name][["الطالبة", "النوع", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]]
+                # إظهار أعمدة الجدول متضمنة عمود الجزئية
+                columns_to_show = ["الطالبة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"]
+                available_cols = [c for c in columns_to_show if c in df.columns]
+                
+                surah_data = df[df["السورة"] == surah_name][available_cols]
                 
                 if surah_data.empty:
                     st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
