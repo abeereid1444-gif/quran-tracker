@@ -10,7 +10,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ضعِي مفاتيحك الحقيقية بالإنجليزية هنا (بدون أي حروف عربية)
 BIN_ID = "6abfa100ac6210605a0c3074"
 API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 
@@ -20,14 +19,11 @@ HEADERS = {
     "X-Master-Key": API_KEY
 }
 
-# دالة مأمونة لجلب البيانات
+# جلب البيانات سحابياً مع تفعيل التخزين المؤقت لمنع التعليق والبطء
+@st.cache_data(ttl=5)
 def load_data():
-    if "ضعِي_هنا" in BIN_ID or "ضعِي_هنا" in API_KEY:
-        st.warning("⚠️ يرجى استبدال 'ضعِي_هنا_BIN_ID' و 'ضعِي_هنا_SECRET_KEY' بالمفاتيح الإنجليزية الحقيقية من موقع JSONBin.")
-        return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
-        
     try:
-        res = requests.get(f"{URL}/latest", headers=HEADERS, timeout=10)
+        res = requests.get(f"{URL}/latest", headers=HEADERS, timeout=5)
         if res.status_code == 200:
             data = res.json().get("record", {})
             records = data.get("records", []) if isinstance(data, dict) else []
@@ -35,18 +31,12 @@ def load_data():
             if not df.empty and "الجزئية" not in df.columns:
                 df["الجزئية"] = "غير محدد"
             return df
-        else:
-            st.error(f"تنبيه السحابة: رمز {res.status_code}")
-    except Exception as e:
-        st.error(f"خطأ اتصالات: {e}")
+    except Exception:
+        pass
     return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
-# دالة مأمونة لحفظ البيانات
+# حفظ البيانات سحابياً وتحديث الذاكرة المؤقتة
 def save_data(df):
-    if "ضعِي_هنا" in BIN_ID or "ضعِي_هنا" in API_KEY:
-        st.error("⚠️ يرجى كتابة المفاتيح الإنجليزية الحقيقية قبل حفظ البيانات.")
-        return False
-        
     try:
         clean_df = df.copy()
         clean_df["الحفظ (/5)"] = clean_df["الحفظ (/5)"].astype(int)
@@ -56,22 +46,21 @@ def save_data(df):
         records = clean_df.to_dict(orient="records")
         payload = {"records": records}
         
-        res = requests.put(URL, json=payload, headers=HEADERS, timeout=10)
-        return res.status_code == 200
-    except Exception as e:
-        st.error(f"خطأ بالحفظ: {e}")
-        return False
+        res = requests.put(URL, json=payload, headers=HEADERS, timeout=5)
+        if res.status_code == 200:
+            st.cache_data.clear()  # تحديث البيانات فوراً
+            return True
+    except Exception:
+        pass
+    return False
 
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
     "سورة نوح", "سورة الجن", "سورة المزمل", "سورة المدثر", 
-    "سورة القيامة", "سورة الإنسان", "جزء النباء"
+    "سورة القيامة", "سورة الإنسان", "سورة المرسلات"
 ]
 
 STUDENTS = ["عبير", "اشفاق", "ندى", "في", "منيرة", "ايناس", "صفية"]
-
-if "step" not in st.session_state:
-    st.session_state.step = 1
 
 st.title("📖 تقييم تسميع جزء تبارك")
 
@@ -79,72 +68,51 @@ tab1, tab2 = st.tabs(["📝 إدخال تقييم", "📊 الإحصائيات �
 
 # ---------------- التبويب الأول: إدخال التقييم ----------------
 with tab1:
-    if st.session_state.step == 1:
-        st.subheader("الخطوة 1: اختيار الطالبة")
-        student = st.selectbox("اختر اسم الطالبة:", STUDENTS, key="student_select")
+    student = st.selectbox("اختر اسم الطالبة:", STUDENTS, key="student_select")
+    surah = st.selectbox("اختر السورة من جزء تبارك:", TABARAK_SURAHS, key="surah_select")
+    
+    eval_type = st.radio(
+        "اختر نوع التقييم:", 
+        ["تسميع 🎙", "تلاوة 📖"], 
+        horizontal=True, 
+        key="eval_type_radio"
+    )
+    
+    part_section = st.radio(
+        "اختر الجزئية المطلوب تقييمها:", 
+        ["الجزئية الأولى 📍", "الجزئية الثانية 📍", "الجزئية الأخيرة 📍"], 
+        horizontal=True, 
+        key="part_section_radio"
+    )
+    
+    st.write("---")
+    st.write("### ⭐ تقييم الحفظ (من 5):")
+    memo = st.radio("درجة الحفظ:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="memo_radio")
+    
+    st.write("### ⭐ تقييم التجويد (من 5):")
+    tajweed = st.radio("درجة التجويد:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="tajweed_radio")
+    
+    st.write("---")
+    if st.button("رفع التقييم 📤", type="primary"):
+        total = int(memo) + int(tajweed)
+        new_row = {
+            "الطالبة": str(student),
+            "السورة": str(surah),
+            "النوع": str(eval_type),
+            "الجزئية": str(part_section).replace(" 📍", ""),
+            "الحفظ (/5)": int(memo),
+            "التجويد (/5)": int(tajweed),
+            "المجموع (/10)": int(total)
+        }
         
-        st.write("")
-        if st.button("متابعة ➔", type="primary"):
-            st.session_state.selected_student = student
-            st.session_state.step = 2
-            st.rerun()
-
-    elif st.session_state.step == 2:
-        st.info(f"المقيّم / الطالبة: **{st.session_state.selected_student}**")
-        
-        surah = st.selectbox("اختر السورة من جزء تبارك:", TABARAK_SURAHS)
-        
-        eval_type = st.radio(
-            "اختر نوع التقييم:", 
-            ["تسميع 🎙", "تلاوة 📖"], 
-            horizontal=True, 
-            key="eval_type_radio"
-        )
-        
-        part_section = st.radio(
-            "اختر الجزئية المطلوب تقييمها:", 
-            ["الجزئية الأولى 📍", "الجزئية الثانية 📍", "الجزئية الأخيرة 📍"], 
-            horizontal=True, 
-            key="part_section_radio"
-        )
-        
-        st.write("---")
-        st.write("### ⭐ تقييم الحفظ (من 5):")
-        memo = st.radio("درجة الحفظ:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="memo_radio")
-        
-        st.write("### ⭐ تقييم التجويد (من 5):")
-        tajweed = st.radio("درجة التجويد:", [1, 2, 3, 4, 5], index=4, horizontal=True, key="tajweed_radio")
-        
-        st.write("---")
-        col_sub, col_back = st.columns([2, 1])
-        
-        with col_sub:
-            if st.button("رفع التقييم 📤", type="primary"):
-                total = int(memo) + int(tajweed)
-                new_row = {
-                    "الطالبة": str(st.session_state.selected_student),
-                    "السورة": str(surah),
-                    "النوع": str(eval_type),
-                    "الجزئية": str(part_section).replace(" 📍", ""),
-                    "الحفظ (/5)": int(memo),
-                    "التجويد (/5)": int(tajweed),
-                    "المجموع (/10)": int(total)
-                }
-                
-                df_current = load_data()
-                df_updated = pd.concat([df_current, pd.DataFrame([new_row])], ignore_index=True)
-                
-                if save_data(df_updated):
-                    st.success("تم رفع التقييم وتخزينه سحابياً بنجاح! ✨")
-                    st.session_state.step = 1
-                    st.rerun()
-                else:
-                    st.error("فشل الحفظ، يرجى التأكد من المفاتيح.")
-                
-        with col_back:
-            if st.button("تغيير الطالبة ↩"):
-                st.session_state.step = 1
-                st.rerun()
+        with st.spinner("جاري حفظ التقييم سحابياً..."):
+            df_current = load_data()
+            df_updated = pd.concat([df_current, pd.DataFrame([new_row])], ignore_index=True)
+            
+            if save_data(df_updated):
+                st.success(f"تم رفع تقييم الطالبة ({student}) لـ ({surah}) بنجاح! ✨")
+            else:
+                st.error("فشل الحفظ، يرجى إعادة المحاولة.")
 
 # ---------------- التبويب الثاني: الإحصائيات حسب السورة ----------------
 with tab2:
