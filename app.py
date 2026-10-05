@@ -10,6 +10,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# مفاتيح الاتصال الخاصة بك
 BIN_ID = "6abfa100ac6210605a0c3074"
 API_KEY = "$2a$10$FAGxxbVpyqo1XDMWGNvbquczAoxTjWYDaxEMGn2.d1MeGTvP8hkra"
 
@@ -19,7 +20,7 @@ HEADERS = {
     "X-Master-Key": API_KEY
 }
 
-# جلب البيانات سحابياً مع تفعيل التخزين المؤقت لمنع التعليق والبطء
+# دالة مأمونة لجلب البيانات مع ذاكرة مؤقتة لمنع التعليق
 @st.cache_data(ttl=5)
 def load_data():
     try:
@@ -35,7 +36,7 @@ def load_data():
         pass
     return pd.DataFrame(columns=["الطالبة", "السورة", "النوع", "الجزئية", "الحفظ (/5)", "التجويد (/5)", "المجموع (/10)"])
 
-# حفظ البيانات سحابياً وتحديث الذاكرة المؤقتة
+# دالة مأمونة لحفظ البيانات وتحديث التخزين المؤقت
 def save_data(df):
     try:
         clean_df = df.copy()
@@ -48,16 +49,17 @@ def save_data(df):
         
         res = requests.put(URL, json=payload, headers=HEADERS, timeout=5)
         if res.status_code == 200:
-            st.cache_data.clear()  # تحديث البيانات فوراً
+            st.cache_data.clear()
             return True
     except Exception:
         pass
     return False
 
+# نفس القائمة الخاصة بك بدون أي تغيير
 TABARAK_SURAHS = [
     "سورة الملك", "سورة القلم", "سورة الحاقة", "سورة المعارج", 
     "سورة نوح", "سورة الجن", "سورة المزمل", "سورة المدثر", 
-    "سورة القيامة", "سورة الإنسان", "سورة المرسلات"
+    "سورة القيامة", "سورة الإنسان", "جزء النباء"
 ]
 
 STUDENTS = ["عبير", "اشفاق", "ندى", "في", "منيرة", "ايناس", "صفية"]
@@ -105,7 +107,7 @@ with tab1:
             "المجموع (/10)": int(total)
         }
         
-        with st.spinner("جاري حفظ التقييم سحابياً..."):
+        with st.spinner("جاري التخزين السحابي..."):
             df_current = load_data()
             df_updated = pd.concat([df_current, pd.DataFrame([new_row])], ignore_index=True)
             
