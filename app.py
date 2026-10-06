@@ -123,26 +123,7 @@ with tab2:
     if df.empty:
         st.warning("لا توجد تقييمات مسجلة حتى الآن.")
     else:
-        # 1. جدول ملخص عدد مرات التسميع لكل طالبة لكل سورة
-        st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
-        
-        # إنشاء مصفوفة الإحصائيات (Pivot Table)
-        summary_df = df.pivot_table(
-            index="الطالبة", 
-            columns="السورة", 
-            aggfunc="size", 
-            fill_value=0
-        )
-        
-        # إعادة ترتيب الصفوف والأعمدة لتضمين كافة الطالبات والسور حتى لو لم تسجل بعد
-        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
-        
-        # تحويل الأصفار لرموز أرقام واضحة
-        summary_display = summary_df.astype(int)
-        
-        st.dataframe(summary_display, use_container_width=True)
-        
-        st.write("---")
+        # 1. تفاصيل درجات الطالبات لكل سورة أولاً
         st.subheader("📊 تفاصيل درجات الطالبات لكل سورة")
         
         surah_tabs = st.tabs(TABARAK_SURAHS)
@@ -160,6 +141,23 @@ with tab2:
                     st.info("لا توجد تقييمات مسجلة لهذه السورة بعد.")
                 else:
                     st.dataframe(surah_data, use_container_width=True, hide_index=True)
+
+        st.write("---")
+        
+        # 2. جدول ملخص عدد مرات التسميع لكل طالبة ثانياً
+        st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
+        
+        summary_df = df.pivot_table(
+            index="الطالبة", 
+            columns="السورة", 
+            aggfunc="size", 
+            fill_value=0
+        )
+        
+        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
+        summary_display = summary_df.astype(int)
+        
+        st.dataframe(summary_display, use_container_width=True)
 
         st.write("---")
         csv = df.to_csv(index=False).encode('utf-8-sig')
