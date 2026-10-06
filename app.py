@@ -118,13 +118,33 @@ with tab1:
 
 # ---------------- التبويب الثاني: الإحصائيات حسب السورة ----------------
 with tab2:
-    st.subheader("📊 درجات الطالبات لكل سورة")
-    
     df = load_data()
     
     if df.empty:
         st.warning("لا توجد تقييمات مسجلة حتى الآن.")
     else:
+        # 1. جدول ملخص عدد مرات التسميع لكل طالبة لكل سورة
+        st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
+        
+        # إنشاء مصفوفة الإحصائيات (Pivot Table)
+        summary_df = df.pivot_table(
+            index="الطالبة", 
+            columns="السورة", 
+            aggfunc="size", 
+            fill_value=0
+        )
+        
+        # إعادة ترتيب الصفوف والأعمدة لتضمين كافة الطالبات والسور حتى لو لم تسجل بعد
+        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
+        
+        # تحويل الأصفار لرموز أرقام واضحة
+        summary_display = summary_df.astype(int)
+        
+        st.dataframe(summary_display, use_container_width=True)
+        
+        st.write("---")
+        st.subheader("📊 تفاصيل درجات الطالبات لكل سورة")
+        
         surah_tabs = st.tabs(TABARAK_SURAHS)
         
         for idx, surah_name in enumerate(TABARAK_SURAHS):
