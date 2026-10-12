@@ -144,7 +144,7 @@ with tab2:
 
         st.write("---")
         
-        # 2. جدول ملخص عدد مرات التسميع لكل طالبة مع التنسيق الشرطي الأخضر
+        # 2. جدول ملخص عدد مرات التسميع لكل طالبة ثانياً
         st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
         
         summary_df = df.pivot_table(
@@ -154,28 +154,33 @@ with tab2:
             fill_value=0
         )
         
-        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0).astype(int)
+        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
         
-        # دالة تطبيق اللون الأخضر حسب الشرط المطلوب
-        def highlight_completion(val_series):
-            surah_col = val_series.name
-            styles = []
-            for val in val_series:
-                if surah_col == "جزء النباء":
-                    # جزء النباء: يتلون بالأخضر إذا زاد عن 18
+        # إعداد جدول النصوص المنسقة بالتلوين وعبارة (تم الحفظ بحمدالله)
+        display_df = summary_df.astype(str)
+        style_df = pd.DataFrame("", index=summary_df.index, columns=summary_df.columns)
+        
+        for col in summary_df.columns:
+            for idx in summary_df.index:
+                val = int(summary_df.loc[idx, col])
+                is_completed = False
+                
+                if col == "جزء النباء":
                     if val > 18:
-                        styles.append('background-color: #2e7d32; color: white; font-weight: bold;')
-                    else:
-                        styles.append('')
+                        is_completed = True
                 else:
-                    # باقي السور: يتلون بالأخضر إذا كان 3 أو أكثر
                     if val >= 3:
-                        styles.append('background-color: #2e7d32; color: white; font-weight: bold;')
-                    else:
-                        styles.append('')
-            return styles
+                        is_completed = True
+                        
+                if is_completed:
+                    display_df.loc[idx, col] = f"{val}\n(تم الحفظ بحمدالله)"
+                    style_df.loc[idx, col] = "background-color: #2e7d32; color: white; font-weight: bold; text-align: center;"
+                else:
+                    display_df.loc[idx, col] = str(val)
+                    style_df.loc[idx, col] = "text-align: center;"
 
-        styled_summary = summary_df.style.apply(highlight_completion, axis=0)
+        # تطبيق التنسيق الجمالي وتلوين الخلايا باللون الأخضر
+        styled_summary = display_df.style.apply(lambda _: style_df, axis=None)
         
         st.dataframe(styled_summary, use_container_width=True)
 
