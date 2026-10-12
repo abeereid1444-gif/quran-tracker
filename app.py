@@ -144,7 +144,7 @@ with tab2:
 
         st.write("---")
         
-        # 2. جدول ملخص عدد مرات التسميع لكل طالبة ثانياً
+        # 2. جدول ملخص عدد مرات التسميع مع استبدال وتلوين تم الحفظ بحمدالله
         st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
         
         summary_df = df.pivot_table(
@@ -156,33 +156,31 @@ with tab2:
         
         summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
         
-        # إعداد جدول النصوص المنسقة بالتلوين وعبارة (تم الحفظ بحمدالله)
-        display_df = summary_df.astype(str)
-        style_df = pd.DataFrame("", index=summary_df.index, columns=summary_df.columns)
+        # إنشاء جدول القيم للعرض مع شروط "تم الحفظ بحمدالله"
+        display_df = summary_df.copy().astype(object)
         
-        for col in summary_df.columns:
-            for idx in summary_df.index:
-                val = int(summary_df.loc[idx, col])
-                is_completed = False
-                
+        for col in display_df.columns:
+            for idx in display_df.index:
+                val = summary_df.loc[idx, col]
                 if col == "جزء النباء":
                     if val > 18:
-                        is_completed = True
+                        display_df.loc[idx, col] = "تم الحفظ بحمدالله ✅"
+                    else:
+                        display_df.loc[idx, col] = int(val)
                 else:
                     if val >= 3:
-                        is_completed = True
-                        
-                if is_completed:
-                    display_df.loc[idx, col] = f"{val}\n(تم الحفظ بحمدالله)"
-                    style_df.loc[idx, col] = "background-color: #2e7d32; color: white; font-weight: bold; text-align: center;"
-                else:
-                    display_df.loc[idx, col] = str(val)
-                    style_df.loc[idx, col] = "text-align: center;"
+                        display_df.loc[idx, col] = "تم الحفظ بحمدالله ✅"
+                    else:
+                        display_df.loc[idx, col] = int(val)
 
-        # تطبيق التنسيق الجمالي وتلوين الخلايا باللون الأخضر
-        styled_summary = display_df.style.apply(lambda _: style_df, axis=None)
-        
-        st.dataframe(styled_summary, use_container_width=True)
+        # دالة تلوين الخانات المكتملة باللون الأخضر
+        def highlight_completed(val):
+            if val == "تم الحفظ بحمدالله ✅":
+                return 'background-color: #d4edda; color: #155724; font-weight: bold;'
+            return ''
+
+        styled_df = display_df.style.applymap(highlight_completed)
+        st.dataframe(styled_df, use_container_width=True)
 
         st.write("---")
         csv = df.to_csv(index=False).encode('utf-8-sig')
