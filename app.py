@@ -144,7 +144,7 @@ with tab2:
 
         st.write("---")
         
-        # 2. جدول ملخص عدد مرات التسميع لكل طالبة ثانياً
+        # 2. جدول ملخص عدد مرات التسميع لكل طالبة مع التنسيق الشرطي الأخضر
         st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
         
         summary_df = df.pivot_table(
@@ -154,10 +154,30 @@ with tab2:
             fill_value=0
         )
         
-        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
-        summary_display = summary_df.astype(int)
+        summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0).astype(int)
         
-        st.dataframe(summary_display, use_container_width=True)
+        # دالة تطبيق اللون الأخضر حسب الشرط المطلوب
+        def highlight_completion(val_series):
+            surah_col = val_series.name
+            styles = []
+            for val in val_series:
+                if surah_col == "جزء النباء":
+                    # جزء النباء: يتلون بالأخضر إذا زاد عن 18
+                    if val > 18:
+                        styles.append('background-color: #2e7d32; color: white; font-weight: bold;')
+                    else:
+                        styles.append('')
+                else:
+                    # باقي السور: يتلون بالأخضر إذا كان 3 أو أكثر
+                    if val >= 3:
+                        styles.append('background-color: #2e7d32; color: white; font-weight: bold;')
+                    else:
+                        styles.append('')
+            return styles
+
+        styled_summary = summary_df.style.apply(highlight_completion, axis=0)
+        
+        st.dataframe(styled_summary, use_container_width=True)
 
         st.write("---")
         csv = df.to_csv(index=False).encode('utf-8-sig')
