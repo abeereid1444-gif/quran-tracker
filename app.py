@@ -144,7 +144,7 @@ with tab2:
 
         st.write("---")
         
-        # 2. جدول ملخص عدد مرات التسميع مع استبدال وتلوين تم الحفظ بحمدالله
+        # 2. جدول ملخص عدد مرات التسميع لكل طالبة ثانياً مع تمييز إتمام الحفظ
         st.subheader("📈 ملخص عدد مرات التسميع لكل طالبة")
         
         summary_df = df.pivot_table(
@@ -156,30 +156,34 @@ with tab2:
         
         summary_df = summary_df.reindex(index=STUDENTS, columns=TABARAK_SURAHS, fill_value=0)
         
-        # إنشاء جدول القيم للعرض مع شروط "تم الحفظ بحمدالله"
-        display_df = summary_df.copy().astype(object)
-        
-        for col in display_df.columns:
-            for idx in display_df.index:
-                val = summary_df.loc[idx, col]
-                if col == "جزء النباء":
+        # دالة تحويل الأرقام إلى نصوص وتمييز الخلايا المكتملة
+        def format_completion(col):
+            surah_name = col.name
+            formatted_col = []
+            for val in col:
+                val = int(val)
+                if surah_name == "جزء النباء":
                     if val > 18:
-                        display_df.loc[idx, col] = "تم الحفظ بحمدالله ✅"
+                        formatted_col.append("تم الحفظ بحمدالله")
                     else:
-                        display_df.loc[idx, col] = int(val)
+                        formatted_col.append(str(val))
                 else:
                     if val >= 3:
-                        display_df.loc[idx, col] = "تم الحفظ بحمدالله ✅"
+                        formatted_col.append("تم الحفظ بحمدالله")
                     else:
-                        display_df.loc[idx, col] = int(val)
+                        formatted_col.append(str(val))
+            return formatted_col
 
-        # دالة تلوين الخانات المكتملة باللون الأخضر
+        display_df = summary_df.apply(format_completion)
+
+        # دالة تلوين الخلايا باللون الأخضر عند إتمام الحفظ
         def highlight_completed(val):
-            if val == "تم الحفظ بحمدالله ✅":
-                return 'background-color: #d4edda; color: #155724; font-weight: bold;'
+            if val == "تم الحفظ بحمدالله":
+                return 'background-color: #2e7d32; color: white; font-weight: bold;'
             return ''
 
         styled_df = display_df.style.applymap(highlight_completed)
+        
         st.dataframe(styled_df, use_container_width=True)
 
         st.write("---")
