@@ -182,7 +182,11 @@ with tab2:
                 return 'background-color: #2e7d32; color: white; font-weight: bold;'
             return ''
 
-        styled_df = display_df.style.applymap(highlight_completed)
+        # دعم الدالة المصححة لإصدارات pandas الحديثة والقديمة
+        try:
+            styled_df = display_df.style.map(highlight_completed)
+        except AttributeError:
+            styled_df = display_df.style.applymap(highlight_completed)
         
         st.dataframe(styled_df, use_container_width=True)
 
